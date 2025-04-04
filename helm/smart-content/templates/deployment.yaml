@@ -1,0 +1,25 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "smart-content.fullname" . }}
+  labels:
+    app: {{ include "smart-content.name" . }}
+spec:
+  replicas: {{ .Values.replicaCount }}
+  selector:
+    matchLabels:
+      app: {{ include "smart-content.name" . }}
+  template:
+    metadata:
+      labels:
+        app: {{ include "smart-content.name" . }}
+    spec:
+      containers:
+        - name: smart-content
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          ports:
+            - containerPort: 8080
+          env:
+            - name: SPRING_PROFILES_ACTIVE
+              value: "prod"

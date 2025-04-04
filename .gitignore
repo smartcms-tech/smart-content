@@ -1,0 +1,71 @@
+# Java
+*.class
+*.jar
+*.war
+*.ear
+
+# Gradle
+.gradle/
+build/
+!gradle/wrapper/gradle-wrapper.jar
+
+# Logs
+logs/
+*.log
+*.log.*
+logback.xml
+
+# Temporary Files
+*.tmp
+*.swp
+*.swo
+*.bak
+
+# IntelliJ IDEA
+.idea/
+*.iml
+*.ipr
+*.iws
+out/
+
+# Eclipse
+.classpath
+.project
+.settings/
+
+# VS Code
+.vscode/
+
+# Docker
+*.tar
+docker-compose.override.yml
+
+# Kubernetes (ignore only generated YAMLs)
+k8s/rendered/
+*.rendered.yaml
+
+# GitHub Actions
+.github/workflows/*.bak
+.github/workflows/*.tmp
+
+# Helm (ignore package outputs but keep source)
+*.tgz
+*.lock
+
+# Node Modules (if any front-end)
+node_modules/
+
+# Coverage & Reports
+*.coverage
+*.lcov
+coverage/
+test-results/
+target/
+
+# System Files
+.DS_Store
+Thumbs.db
+
+# MongoDB Local Data (if storing locally)
+data/
+dump/

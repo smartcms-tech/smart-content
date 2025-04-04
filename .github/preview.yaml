@@ -1,0 +1,62 @@
+name: PR Preview
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+
+jobs:
+  deploy-preview:
+    name: Build and Deploy PR Preview
+    runs-on: ubuntu-latest
+
+    env:
+      IMAGE_TAG: pr-${{ github.event.pull_request.number }}
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v3
+        with:
+          aws-region: ${{ secrets.AWS_REGION }}
+          role-to-assume: ${{ secrets.AWS_DEPLOY_ROLE }}
+
+      - name: Login to Amazon ECR
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Build and push Docker image
+        run: |
+          IMAGE_URI=${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.${{ secrets.AWS_REGION }}.amazonaws.com/${{ secrets.ECR_REPOSITORY }}
+          docker build -t $IMAGE_URI:${IMAGE_TAG} .
+          docker push $IMAGE_URI:${IMAGE_TAG}
+          echo "IMAGE_URI=$IMAGE_URI" >> $GITHUB_ENV
+
+      - name: Set up kubectl
+        uses: azure/setup-kubectl@v3
+        with:
+          version: 'latest'
+
+      - name: Set up Helm
+        uses: azure/setup-helm@v3
+        with:
+          version: v3.12.3
+
+      - name: Configure kubeconfig
+        run: |
+          mkdir -p ~/.kube
+          echo "${{ secrets.KUBECONFIG_DEV }}" | base64 --decode > ~/.kube/config
+
+      - name: Deploy with Helm (PR Environment)
+        run: |
+          helm upgrade --install smart-content-pr-${{ github.event.pull_request.number }} \
+            ./helm/smart-content \
+            --namespace smartcms-pr-${{ github.event.pull_request.number }} \
+            --create-namespace \
+            --set image.repository=${IMAGE_URI} \
+            --set image.tag=${IMAGE_TAG} \
+            --set ingress.hosts[0].host=pr-${{ github.event.pull_request.number }}.smartcms.dev \
+            --set ingress.enabled=true
