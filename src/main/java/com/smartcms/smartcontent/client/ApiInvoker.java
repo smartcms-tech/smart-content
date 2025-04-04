@@ -88,7 +88,7 @@ public class ApiInvoker {
                     .retrieve()
                     .body(responseType);
         } catch (ApiException e) {
-            log.error("API Error ({}): {} - {}", e.getStatusCode(), request.getPath(), e.getResponseBody());
+            log.error("API Error ({}): {} - {}", e.getStatusCode(), request.getPath(), e.getMessage());
             throw e;
         } catch (Exception e) {
             log.error("Unexpected error: {} {}", request.getPath(), e.getMessage());
