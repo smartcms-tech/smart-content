@@ -19,7 +19,7 @@ public interface ContentService {
     PaginatedResponse<Content> getContentByStatus(String orgId, ContentStatus status, int page, int size);
 
     // Content Status Management
-    Content updateStatus(String contentId, ContentStatus newStatus, String updatedBy);
+    Content updateStatus(String contentId, ContentStatus newStatus, String updatedBy, String note);
     Content schedulePublishing(String contentId, Instant publishTime, String scheduledBy);
     void processScheduledContent();
 
@@ -36,4 +36,9 @@ public interface ContentService {
 
     // Update Slug
     Content updateSlug(String contentId, String newSlug, String updatedBy);
+    SlugValidationResponse validateSlug(String slug, String orgId, String contentId);
+    String generateUniqueSlug(String contentId, String orgId);
+
+    // Content Status Audit
+    List<ContentStatusAudit> getStatusAuditForContent(String contentId);
 }

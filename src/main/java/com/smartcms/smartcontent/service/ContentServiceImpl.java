@@ -7,10 +7,12 @@ import com.smartcms.smartcontent.client.SmartMediaClient;
 import com.smartcms.smartcontent.dto.ContentRequest;
 import com.smartcms.smartcontent.dto.ContentUpdateRequest;
 import com.smartcms.smartcontent.dto.ContentVersionDto;
+import com.smartcms.smartcontent.dto.SlugValidationResponse;
 import com.smartcms.smartcontent.exception.InvalidScheduleTimeException;
 import com.smartcms.smartcontent.model.*;
 import com.smartcms.smartcontent.repository.ContentHistoryRepository;
 import com.smartcms.smartcontent.repository.ContentRepository;
+import com.smartcms.smartcontent.repository.ContentStatusAuditRepository;
 import com.smartcms.smartcontent.utility.SlugGenerator;
 import io.micrometer.common.util.StringUtils;
 import lombok.RequiredArgsConstructor;
@@ -19,6 +21,7 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
+import org.springframework.http.HttpStatus;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -37,6 +40,7 @@ public class ContentServiceImpl implements ContentService {
     private final SlugGenerator slugGenerator;
     private final ContentRepository contentRepository;
     private final ContentHistoryRepository contentHistoryRepository;
+    private final ContentStatusAuditRepository contentStatusAuditRepository;
     private final SmartMediaClient mediaClient;
 
     // Status transition validation rules
@@ -59,6 +63,9 @@ public class ContentServiceImpl implements ContentService {
         if (slug.isEmpty()) {
             slug = slugGenerator.generateSlugWithAI(request.getDescription());
         }
+//        while (contentRepository.existsByOrgDetailsOrgIdAndSlug(orgId, slug)) {
+//            slug = slugGenerator.generateUniqueSlug(slug);
+//        }
 
         Content content = Content.builder()
                 .title(request.getTitle())
@@ -96,9 +103,6 @@ public class ContentServiceImpl implements ContentService {
         Pageable pageable = PageRequest.of(page, size, Sort.by("updatedAt").descending());
         Page<Content> pageResult = contentRepository.findByOrgIdAndStatusNot(orgId, ContentStatus.DELETED, pageable);
 
-        if (pageResult.isEmpty()) {
-            throw new ResourceNotFoundException("No content found for org: " + orgId);
-        }
         log.debug("Found {} org items for orgId: {}", pageResult.getNumberOfElements(), orgId);
         return buildPaginatedResponse(pageResult);
     }
@@ -140,24 +144,20 @@ public class ContentServiceImpl implements ContentService {
         return buildPaginatedResponse(pageResult);
     }
 
-    public Content updateStatus(String contentId, ContentStatus newStatus, String updatedBy) {
+    public Content updateStatus(String contentId, ContentStatus newStatus, String updatedBy, String note) {
         Content content = getExistingContent(contentId);
         validateStatusTransition(content.getStatus(), newStatus);
+
+        ContentStatusAudit statusAudit = createStatusAudit(content, newStatus, updatedBy, note);
 
         content.setStatus(newStatus);
         content.setUpdatedAt(Instant.now());
         content.setLastUpdatedBy(new UserDetails(updatedBy));
 
-        // Set publishedAt when publishing
-        if (newStatus.equals(ContentStatus.PUBLISHED)) {
-            content.setPublishedAt(Instant.now());
-        }
-        if (newStatus.equals(ContentStatus.APPROVED) || newStatus.equals(ContentStatus.REJECTED)) {
-            content.setReviewedBy(new UserDetails(updatedBy));
-        }
-
         log.info("Updated status of content {} to {} by user {}", contentId, newStatus, updatedBy);
-        return contentRepository.save(content);
+        Content newContent = contentRepository.save(content);
+        contentStatusAuditRepository.save(statusAudit);
+        return newContent;
     }
 
     public Content schedulePublishing(String contentId, Instant publishTime, String scheduledBy) {
@@ -166,13 +166,19 @@ public class ContentServiceImpl implements ContentService {
         }
 
         Content content = getExistingContent(contentId);
+        validateStatusTransition(content.getStatus(), ContentStatus.SCHEDULED);
+
+        ContentStatusAudit statusAudit = createStatusAudit(content, ContentStatus.SCHEDULED, scheduledBy, "Scheduled for publishing");
+
         content.setStatus(ContentStatus.SCHEDULED);
         content.setScheduledPublishAt(publishTime);
         content.setUpdatedAt(Instant.now());
         content.setLastUpdatedBy(new UserDetails(scheduledBy));
 
         log.info("Scheduled content {} for publishing at {} by user {}", contentId, publishTime, scheduledBy);
-        return contentRepository.save(content);
+        Content newContent = contentRepository.save(content);
+        contentStatusAuditRepository.save(statusAudit);
+        return newContent;
     }
 
     @Scheduled(fixedRate = 300000) // Primary check every 5 mins
@@ -197,13 +203,30 @@ public class ContentServiceImpl implements ContentService {
     }
 
     private void publishContent(Content content, Instant publishTime) {
+        ContentStatusAudit statusAudit = createStatusAudit(content, ContentStatus.PUBLISHED, "scheduled@system", "Published content");
+
         content.setStatus(ContentStatus.PUBLISHED);
         content.setPublishedAt(publishTime);
         content.setUpdatedAt(Instant.now());
         contentRepository.save(content);
-
+        contentStatusAuditRepository.save(statusAudit);
         log.warn("Published content {} (original schedule: {})",
                 content.getId(), content.getScheduledPublishAt());
+    }
+
+    private ContentStatusAudit createStatusAudit(Content content, ContentStatus newStatus, String updatedBy, String note) {
+        ContentStatusAudit statusAudit = ContentStatusAudit.builder()
+                .contentId(content.getId())
+                .oldStatus(content.getStatus())
+                .newStatus(newStatus)
+                .changedAt(Instant.now())
+                .changedBy(new UserDetails(updatedBy))
+                .build();
+
+        if (StringUtils.isNotBlank(note)) {
+            statusAudit.setNote(note);
+        }
+        return statusAudit;
     }
 
     public void moveToBin(String id, String deletedBy) {
@@ -270,8 +293,10 @@ public class ContentServiceImpl implements ContentService {
     }
 
     public void deleteContent(String id) {
-        Content content = contentRepository.findByIdAndStatus(id, ContentStatus.DELETED)
-                .orElseThrow(() -> new ResourceNotFoundException("Content must be deleted first"));
+        Content content = getExistingContent(id);
+        if (!ContentStatus.DELETED.equals(content.getStatus())){
+            throw new IllegalStateException("Content is not deleted, cannot be permanently deleted");
+        }
 
         try {
             deleteAssociatedMedia(content);
@@ -279,7 +304,7 @@ public class ContentServiceImpl implements ContentService {
             log.info("Permanently deleted content {}", id);
         } catch (Exception e) {
             log.error("Failed to delete content {}", id, e);
-            throw new ServiceLayerException("Failed to delete content", e);
+            throw new ServiceLayerException("Failed to delete content", e, HttpStatus.INTERNAL_SERVER_ERROR);
         }
     }
 
@@ -304,7 +329,7 @@ public class ContentServiceImpl implements ContentService {
     }
 
     public Content rollbackContent(String contentId, int version, String rolledBackBy, Set<RollbackField> fieldsToRollback) {
-        try {
+
             log.info("Starting rollback for contentId: {}, version: {}, requested by: {}",
                     contentId, version, rolledBackBy);
 
@@ -317,7 +342,7 @@ public class ContentServiceImpl implements ContentService {
             }else if (currentContent.getVersion() < version) {
                 throw new IllegalArgumentException("Cannot rollback to a future version");
             }else if (currentContent.getStatus() == ContentStatus.DELETED) {
-                throw new ServiceLayerException("Cannot rollback a deleted content");
+                throw new ServiceLayerException("Cannot rollback a deleted content", HttpStatus.BAD_REQUEST);
             }
 
             // If fieldsToRollback is empty, rollback everything
@@ -345,12 +370,6 @@ public class ContentServiceImpl implements ContentService {
             log.info("Successfully rolled back contentId: {} to version: {}", contentId, version);
 
             return rolledBackContent;
-
-        } catch (Exception e) {
-            log.error("Unexpected error during rollback for contentId: {} - {}",
-                    contentId, e.getMessage(), e);
-            throw new ServiceLayerException("Failed to perform rollback", e);
-        }
     }
 
     public Content updateSlug(String contentId, String newSlug, String updatedBy) {
@@ -367,6 +386,32 @@ public class ContentServiceImpl implements ContentService {
 
         // Save the updated content
         return contentRepository.save(content);
+    }
+
+    @Override
+    public SlugValidationResponse validateSlug(String slug, String orgId, String contentId) {
+        boolean isAvailable = slugGenerator.isSlugAvailable(slug, orgId, contentId);
+        List<String> suggestions = isAvailable ?
+                Collections.emptyList() :
+                slugGenerator.generateSlugSuggestions(slug, orgId);
+
+        return new SlugValidationResponse(isAvailable, suggestions);
+    }
+
+    @Override
+    public String generateUniqueSlug(String contentId, String orgId) {
+        if (contentId.isBlank())
+            throw new IllegalArgumentException("Content Id cannot be null or empty");
+        Content content = getExistingContent(contentId);
+        return slugGenerator.generateUniqueSlug(content.getTitle(), content.getDescription(), orgId);
+    }
+
+    @Override
+    public List<ContentStatusAudit> getStatusAuditForContent(String contentId) {
+        if (contentId.isBlank())
+            throw new IllegalArgumentException("Content Id cannot be null or empty");
+
+        return contentStatusAuditRepository.findByContentId(contentId);
     }
 
     private void deleteAssociatedMedia(Content content) {
@@ -392,7 +437,9 @@ public class ContentServiceImpl implements ContentService {
     private void validateStatusTransition(ContentStatus current, ContentStatus newStatus) {
         if (!ALLOWED_TRANSITIONS.getOrDefault(current, Set.of()).contains(newStatus)) {
             throw new ServiceLayerException(
-                    String.format("Invalid status transition from %s to %s", current, newStatus));
+                    String.format("Invalid status transition from %s to %s", current, newStatus),
+                    HttpStatus.BAD_REQUEST
+            );
         }
     }
 

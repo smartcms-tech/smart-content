@@ -8,6 +8,12 @@ import lombok.NoArgsConstructor;
 @AllArgsConstructor
 @NoArgsConstructor
 public class SlugRequest {
-    private String input;
+
+    public SlugRequest(String title) {
+        this.title = title;
+    }
+
+    private String title;
+    private String description;
 }
 

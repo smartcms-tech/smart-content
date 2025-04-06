@@ -29,7 +29,8 @@ public class ApiInvoker {
         this.restClient = RestClient.builder()
                 .baseUrl(baseUrl)
                 .defaultStatusHandler(HttpStatusCode::isError, (req, res) -> {
-                    String errorBody = res.getBody() != null ? res.getBody().toString() : "No error details";
+                    res.getBody();
+                    String errorBody = res.getBody().toString();
                     throw new ApiException("API call failed", res.getStatusCode(), errorBody);
                 })
                 .requestInterceptor((request, body, execution) -> {
@@ -88,12 +89,12 @@ public class ApiInvoker {
                     .retrieve()
                     .body(responseType);
         } catch (ApiException e) {
-            log.error("API Error ({}): {} - {}", e.getStatusCode(), request.getPath(), e.getMessage());
+            log.error("API Error ({}): {} - {}", e.getStatus(), request.getPath(), e.getMessage());
             throw e;
         } catch (Exception e) {
             log.error("Unexpected error: {} {}", request.getPath(), e.getMessage());
             throw new ApiException("Request failed: " + request.getPath(),
-                    HttpStatus.INTERNAL_SERVER_ERROR, e.getMessage());
+                    HttpStatus.INTERNAL_SERVER_ERROR);
         }
     }
 

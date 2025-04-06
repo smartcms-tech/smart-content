@@ -16,9 +16,9 @@ import java.util.Optional;
 @Repository
 public interface ContentRepository extends MongoRepository<Content, String> {
 
-    List<Content> findByTagsContaining(String tag);
-
-    List<Content> findByAuthor(String userId);
+//    List<Content> findByTagsContaining(String tag);
+//
+//    List<Content> findByAuthor(String userId);
 
     List<Content> findByStatusAndDeletedAtBefore(ContentStatus contentStatus, Instant expirationTime);
 
@@ -36,4 +36,9 @@ public interface ContentRepository extends MongoRepository<Content, String> {
 
     @Query("{ 'orgDetails.orgId': ?0, 'status': { $ne: ?1 } }")
     Page<Content> findByOrgIdAndStatusNot(String orgId, ContentStatus status, Pageable pageable);
+
+    boolean existsBySlugAndOrgDetails_OrgIdAndStatus(String slug, String orgId, ContentStatus status);
+
+    boolean existsBySlugAndOrgDetails_OrgIdAndStatusAndIdNot(String slug, String orgId, ContentStatus status, String contentId);
+
 }

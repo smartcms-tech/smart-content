@@ -2,20 +2,18 @@ package com.smartcms.smartcontent.controller;
 
 import com.smartcms.smartcommon.model.Content;
 import com.smartcms.smartcommon.model.ContentStatus;
-import com.smartcms.smartcontent.dto.ContentRequest;
-import com.smartcms.smartcontent.dto.ContentUpdateRequest;
+import com.smartcms.smartcontent.dto.*;
 
-import com.smartcms.smartcontent.dto.ContentVersionDto;
+import com.smartcms.smartcontent.model.ContentStatusAudit;
 import com.smartcms.smartcontent.model.PaginatedResponse;
 import com.smartcms.smartcontent.model.RollbackField;
 import com.smartcms.smartcontent.service.ContentServiceImpl;
-import io.swagger.annotations.Api;
-import io.swagger.annotations.ApiOperation;
-import io.swagger.annotations.ApiResponse;
-import io.swagger.annotations.ApiResponses;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.responses.ApiResponse;
+import io.swagger.v3.oas.annotations.responses.ApiResponses;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.Future;
-import jakarta.validation.constraints.NotNull;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -28,17 +26,17 @@ import java.util.Set;
 @RestController
 @RequestMapping("/api/v1/content")
 @RequiredArgsConstructor
-@Api(tags = "Content Management", description = "Endpoints for managing content lifecycle")
+@Tag(name = "Content Management", description = "APIs for managing content lifecycle")
 public class ContentController {
 
     private final ContentServiceImpl contentServiceImpl;
 
-    @ApiOperation(value = "Create new content", notes = "Creates new content item with the provided details")
+    @Operation(summary = "Create new content", description = "Creates a new content item with the provided details")
     @ApiResponses({
-            @ApiResponse(code = 201, message = "Content created successfully", response = Content.class),
-            @ApiResponse(code = 400, message = "Invalid input data"),
-            @ApiResponse(code = 401, message = "Unauthorized"),
-            @ApiResponse(code = 403, message = "Insufficient permissions")
+            @ApiResponse(responseCode = "201", description = "Content created successfully"),
+            @ApiResponse(responseCode = "400", description = "Invalid input data"),
+            @ApiResponse(responseCode = "401", description = "Unauthorized"),
+            @ApiResponse(responseCode = "403", description = "Insufficient permissions")
     })
     @PostMapping("/create")
     public ResponseEntity<Content> createContent(
@@ -51,18 +49,18 @@ public class ContentController {
     }
 
     // Content Retrieval
-    @ApiOperation(value = "Get content by ID", notes = "Retrieves content details including versions and metadata")
+    @Operation(summary = "Get content by ID", description = "Retrieves content details including versions and metadata")
     @ApiResponses({
-            @ApiResponse(code = 200, message = "Content found", response = Content.class),
-            @ApiResponse(code = 404, message = "Content not found")
+            @ApiResponse(responseCode = "200", description = "Content found"),
+            @ApiResponse(responseCode = "404", description = "Content not found")
     })
-    @GetMapping("/{id}")
-    public ResponseEntity<Content> getContentById(@PathVariable String id) {
-        Content content = contentServiceImpl.getContentById(id);
+    @GetMapping("/{contentId}")
+    public ResponseEntity<Content> getContentById(@PathVariable String contentId) {
+        Content content = contentServiceImpl.getContentById(contentId);
         return ResponseEntity.ok(content);
     }
 
-    @ApiOperation(value = "List content by organization", notes = "Retrieves paginated list of content for an organization")
+    @Operation(summary = "List content by organization", description = "Retrieves paginated list of content for an organization")
     @GetMapping("/org")
     public ResponseEntity<PaginatedResponse<Content>> listOrgContent(
             @RequestHeader("X-Org-Id") String orgId,
@@ -75,31 +73,21 @@ public class ContentController {
     }
 
     // Content Modification
-    @ApiOperation(value = "Update content", notes = "Updates content details (title, description, body, etc.)")
-    @PatchMapping("/{id}")
+    @Operation(summary = "Update content", description = "Updates content details (title, description, body, etc.)")
+    @PatchMapping("/{contentId}")
     public ResponseEntity<Content> updateContent(
-            @PathVariable String id,
+            @PathVariable String contentId,
             @RequestBody @Valid ContentUpdateRequest request,
             @RequestHeader("X-User-Id") String updatedBy) {
 
         if (request == null) {
             throw new IllegalArgumentException("Request body is required");
         }
-        Content updatedContent = contentServiceImpl.updateContent(id, request, updatedBy);
+        Content updatedContent = contentServiceImpl.updateContent(contentId, request, updatedBy);
         return ResponseEntity.ok(updatedContent);
     }
 
-    @ApiOperation(value = "Update content slug", notes = "Updates the URL-friendly slug for content")
-    @PatchMapping("/{id}/slug")
-    public ResponseEntity<Content> updateSlug(
-            @PathVariable String id,
-            @RequestParam String newSlug,
-            @RequestHeader("X-User-Id") String updatedBy) {
-        Content content = contentServiceImpl.updateSlug(id, newSlug, updatedBy);
-        return ResponseEntity.ok(content);
-    }
-
-    @ApiOperation(value = "Get content by status", notes = "Retrieves paginated list of content by status")
+    @Operation(summary = "Get content by status", description = "Retrieves paginated list of content by status")
     @GetMapping("/status")
     public ResponseEntity<PaginatedResponse<Content>> listContentByStatus(
             @RequestHeader("X-Org-Id") String orgId,
@@ -111,28 +99,33 @@ public class ContentController {
         return ResponseEntity.ok(response);
     }
 
-    @ApiOperation(value = "Update content status", notes = "Change status between DRAFT, PUBLISHED, or ARCHIVED")
+    @Operation(summary = "Update content status", description = "Change status between DRAFT, PUBLISHED, or ARCHIVED")
     @PatchMapping("/{contentId}/status")
     @ApiResponses({
-            @ApiResponse(code = 200, message = "Status updated successfully"),
-            @ApiResponse(code = 400, message = "Invalid status transition"),
-            @ApiResponse(code = 404, message = "Content not found")
+            @ApiResponse(responseCode = "200", description = "Status updated successfully"),
+            @ApiResponse(responseCode = "400", description = "Invalid status transition"),
+            @ApiResponse(responseCode = "404", description = "Content not found")
     })
     public ResponseEntity<Content> updateContentStatus(
             @PathVariable String contentId,
-            @RequestParam @NotNull ContentStatus newStatus,
+            @RequestBody @Valid ContentStatusUpdateRequest request,
             @RequestHeader("X-User-Id") String updatedBy) {
 
-        Content updatedContent = contentServiceImpl.updateStatus(contentId, newStatus, updatedBy);
+        Content updatedContent = contentServiceImpl.updateStatus(
+                contentId,
+                request.getNewStatus(),
+                updatedBy,
+                request.getNote()
+        );
         return ResponseEntity.ok(updatedContent);
     }
 
-    @ApiOperation(value = "Schedule content publishing", notes = "Set future publish date/time")
+    @Operation(summary = "Schedule content publishing", description = "Set future publish date/time")
     @PatchMapping("/{contentId}/schedule")
     @ApiResponses({
-            @ApiResponse(code = 200, message = "Content scheduled"),
-            @ApiResponse(code = 400, message = "Invalid schedule time"),
-            @ApiResponse(code = 404, message = "Content not found")
+            @ApiResponse(responseCode = "200", description = "Content scheduled"),
+            @ApiResponse(responseCode = "400", description = "Invalid schedule time"),
+            @ApiResponse(responseCode = "404", description = "Content not found")
     })
     public ResponseEntity<Content> scheduleContent(
             @PathVariable String contentId,
@@ -147,10 +140,10 @@ public class ContentController {
         return ResponseEntity.ok(scheduledContent);
     }
 
-    @ApiOperation(value = "Rollback content version", notes = "Restores content to a previous version (full or partial rollback)")
-    @PostMapping("/{id}/rollback")
+    @Operation(summary = "Rollback content version", description = "Restores content to a previous version (full or partial rollback)")
+    @PostMapping("/{contentId}/rollback")
     public ResponseEntity<Content> rollbackContent(
-            @PathVariable String id,
+            @PathVariable String contentId,
             @RequestParam int version,
             @RequestHeader("X-User-Id") String updatedBy,
             @RequestBody(required = false) Set<RollbackField> fieldsToRollback) {
@@ -158,20 +151,20 @@ public class ContentController {
         if (fieldsToRollback == null) {
             fieldsToRollback = Set.of();
         }
-        Content rolledBackContent = contentServiceImpl.rollbackContent(id, version, updatedBy, fieldsToRollback);
+        Content rolledBackContent = contentServiceImpl.rollbackContent(contentId, version, updatedBy, fieldsToRollback);
         return ResponseEntity.ok(rolledBackContent);
     }
 
 
-    @ApiOperation(value = "List content versions", notes = "Retrieves version history for content")
-    @GetMapping("/{id}/versions")
+    @Operation(summary = "List content versions", description = "Retrieves version history for content")
+    @GetMapping("/{contentId}/versions")
     public ResponseEntity<List<ContentVersionDto>> listContentVersions(
-            @PathVariable String id) {
-        List<ContentVersionDto> versions = contentServiceImpl.getContentVersions(id);
+            @PathVariable String contentId) {
+        List<ContentVersionDto> versions = contentServiceImpl.getContentVersions(contentId);
         return ResponseEntity.ok(versions);
     }
 
-    @ApiOperation(value = "List bin content", notes = "Retrieves paginated list of content in recycle bin")
+    @Operation(summary = "List bin content", description = "Retrieves paginated list of content in recycle bin")
     @GetMapping("/bin")
     public ResponseEntity<PaginatedResponse<Content>> listBinContent(
             @RequestHeader("X-Org-Id") String orgId,
@@ -182,54 +175,90 @@ public class ContentController {
     }
 
     // Content Recycle Bin
-    @ApiOperation(value = "Move content to bin", notes = "Soft-deletes content (moves to recycle bin)")
-    @DeleteMapping("/{id}")
+    @Operation(summary = "Move content to bin", description = "Soft-deletes content (moves to recycle bin)")
+    @DeleteMapping("/{contentId}")
     public ResponseEntity<Void> moveToBin(
-            @PathVariable String id,
+            @PathVariable String contentId,
             @RequestHeader("X-Org-Id") String deletedByUserId) {
 
-        contentServiceImpl.moveToBin(id, deletedByUserId);
+        contentServiceImpl.moveToBin(contentId, deletedByUserId);
         return ResponseEntity.noContent().build(); // HTTP 204
     }
 
-    @ApiOperation(value = "Restore content from bin", notes = "Restores content from recycle bin to active state")
-    @PostMapping("/bin/{id}/restore")
+    @Operation(summary = "Restore content from bin", description = "Restores content from recycle bin to active state")
+    @PostMapping("/bin/{contentId}/restore")
     public ResponseEntity<Content> restoreContent(
-            @PathVariable String id,
+            @PathVariable String contentId,
             @RequestHeader("X-Org-Id") String restoredByUserId) {
 
-        Content restoredContent = contentServiceImpl.restoreContent(id, restoredByUserId);
+        Content restoredContent = contentServiceImpl.restoreContent(contentId, restoredByUserId);
         return ResponseEntity.ok(restoredContent);
     }
 
-    @ApiOperation(value = "Permanently delete content", notes = "Hard-deletes content from the system (irreversible)")
-    @DeleteMapping("/bin/{id}")
+    @Operation(summary = "Permanently delete content", description = "Hard-deletes content from the system (irreversible)")
+    @DeleteMapping("/bin/{contentId}")
     public ResponseEntity<Void> deleteContent(
-            @PathVariable String id,
+            @PathVariable String contentId,
             @RequestHeader("X-Org-Id") String deletedByUserId) {
-        contentServiceImpl.deleteContent(id);
+        contentServiceImpl.deleteContent(contentId);
         return ResponseEntity.noContent().build(); // HTTP 204
     }
 
+    @Operation(summary = "Update content slug", description = "Updates the URL-friendly slug for content")
+    @PatchMapping("/{contentId}/update-slug")
+    public ResponseEntity<Content> updateSlug(
+            @PathVariable String contentId,
+            @RequestParam String newSlug,
+            @RequestHeader("X-User-Id") String updatedBy) {
+        Content content = contentServiceImpl.updateSlug(contentId, newSlug, updatedBy);
+        return ResponseEntity.ok(content);
+    }
+
+    @Operation(summary = "Validate the slug", description = "validates if the slug is available for use")
+    @GetMapping("/{contentId}/validate-slug")
+    public ResponseEntity<SlugValidationResponse> validateSlug(
+            @RequestParam String slug,
+            @RequestHeader("X-Org-ID") String orgId,
+            @PathVariable String contentId) {
+
+        SlugValidationResponse response = contentServiceImpl.validateSlug(slug, orgId, contentId);
+        return ResponseEntity.ok(response);
+    }
+
+    @Operation(summary = "Generate a unique slug", description = "Generates a unique slug for the content")
+    @PostMapping("/{contentId}/generate-slug")
+    public ResponseEntity<String> generateSlug(
+            @RequestHeader("X-Org-ID") String orgId,
+            @PathVariable String contentId) {
+        String slug = contentServiceImpl.generateUniqueSlug(contentId, orgId);
+        return ResponseEntity.ok(slug);
+    }
+
+    @Operation(summary = "Get content status audit", description = "Retrieves the status change history for a specific content item")
+    @GetMapping("/audit/{contentId}")
+    public List<ContentStatusAudit> getStatusAudit(@PathVariable String contentId) {
+        return contentServiceImpl.getStatusAuditForContent(contentId);
+    }
+
     // Content Relationships
-//    @ApiOperation(value = "Link related content", notes = "Creates relationship between content items")
-//    @PostMapping("/{id}/related")
+//    @Operation(summary = "Link related content", description = "Creates relationship between content items")
+//    @PostMapping("/{contentId}/related")
 //    public ResponseEntity<Void> addRelatedContent(
-//            @PathVariable String id,
+//            @PathVariable String contentId,
 //            @RequestBody @Valid RelatedContentRequest request,
 //            @RequestHeader("X-User-Id") String linkedBy) {
 //        // Implementation
 //    }
 //
-//    @ApiOperation(value = "List related content", notes = "Retrieves content related to specified item")
-//    @GetMapping("/{id}/related")
+//    @Operation(summary = "List related content", description = "Retrieves content related to specified item")
+//    @GetMapping("/{contentId}/related")
 //    public ResponseEntity<List<Content>> getRelatedContent(
-//            @PathVariable String id) {
+//            @PathVariable String contentId) {
 //        // Implementation
 //    }
 
     // Content Search
-//    @ApiOperation(value = "Search content", notes = "Full-text search across content with filters")
+//    @Operation(summary = "Search content", description = "Full-text search across content with filters")
 //    @GetMapping("/search")
 //    public ResponseEntity<PaginatedResponse<Content>> searchContent(
 //            @RequestParam String query,

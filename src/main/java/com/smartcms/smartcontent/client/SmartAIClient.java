@@ -1,6 +1,7 @@
 package com.smartcms.smartcontent.client;
 
 import com.smartcms.smartcontent.dto.SlugRequest;
+import io.micrometer.common.util.StringUtils;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.*;
@@ -22,6 +23,9 @@ public class SmartAIClient {
     }
 
     public String generateSlug(String input) {
+
+        if (StringUtils.isNotEmpty(input))
+            return "ai-service-is-not-available";
         String url = smartAIBaseUrl + "/api/smartai/generate-slug";
 
         // Set headers
