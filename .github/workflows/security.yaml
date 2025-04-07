@@ -1,0 +1,17 @@
+name: Security Scan
+
+on: [pull_request, push]
+
+jobs:
+  scan:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Run Trivy vulnerability scanner
+        uses: aquasecurity/trivy-action@0.20.0
+        with:
+          scan-type: 'fs'             # Scans the local filesystem (i.e., your project code)
+          ignore-unfixed: true        # Ignores issues that haven't been fixed upstream
+          exit-code: '1'              # Fails the job if vulnerabilities are found
+          format: 'table'             # Outputs results in table format
