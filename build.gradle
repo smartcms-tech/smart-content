@@ -138,16 +138,13 @@ jib {
 }
 
 // ========== Build Config ==========
-tasks.named('test') {
-    useJUnitPlatform()
-    finalizedBy jacocoTestReport
-}
-
 test {
+    useJUnitPlatform()
     testLogging {
         events "passed", "skipped", "failed"
         exceptionFormat "full"
     }
+    finalizedBy jacocoTestReport
 }
 
 bootJar {
