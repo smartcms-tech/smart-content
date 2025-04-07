@@ -206,7 +206,6 @@ public class ContentServiceImpl implements ContentService {
         ContentStatusAudit statusAudit = createStatusAudit(content, ContentStatus.PUBLISHED, "scheduled@system", "Published content");
 
         content.setStatus(ContentStatus.PUBLISHED);
-        content.setPublishedAt(publishTime);
         content.setUpdatedAt(Instant.now());
         contentRepository.save(content);
         contentStatusAuditRepository.save(statusAudit);
