@@ -31,18 +31,17 @@ jobs:
 
       - name: Check for required secrets
         run: |
-          if [ -z "${{ secrets.GITHUB_USERNAME }}" ] || [ -z "${{ secrets.GITHUB_TOKEN }}" ]; then
-            echo "Missing required secrets: GITHUB_USERNAME or GITHUB_TOKEN"
+          if [ -z "${{ secrets.USERNAME_GITHUB }}" ] || [ -z "${{ secrets.TOKEN_GITHUB }}" ]; then
+            echo "Missing required secrets: USERNAME_GITHUB or TOKEN_GITHUB"
             exit 1
           fi
 
       - name: Setup gradle.properties
         run: |
           mkdir -p ~/.gradle
-          echo "gpr.user=${{ secrets.GITHUB_USERNAME }}" >> ~/.gradle/gradle.properties
-          echo "gpr.key=${{ secrets.GITHUB_TOKEN }}" >> ~/.gradle/gradle.properties
+          echo "gpr.user=${{ secrets.USERNAME_GITHUB }}" >> ~/.gradle/gradle.properties
+          echo "gpr.key=${{ secrets.TOKEN_GITHUB }}" >> ~/.gradle/gradle.properties
           echo "sonar.gradle.skipCompile=true" >> ~/.gradle/gradle.properties
 
       - name: Run Gradle build
         run: ./gradlew clean build --no-configuration-cache
-
