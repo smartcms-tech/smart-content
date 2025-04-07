@@ -1,7 +1,7 @@
 spring:
   data:
     mongodb:
-      uri: mongodb://localhost:27017/smart-content
+      uri: ${SPRING_DATA_MONGODB_URI:mongodb://localhost:27017/smartcms}
 smartai:
   api:
     url: http://localhost:8082/api/v1/ai

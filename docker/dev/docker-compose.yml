@@ -1,0 +1,24 @@
+version: '3.8'
+services:
+  mongo:
+    image: mongo:6.0
+    container_name: smartcms-mongo
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongo-data:/data/db
+
+  smart-content:
+    build:
+      context: ../..  # pointing to smart-content root
+      dockerfile: Dockerfile
+    image: smart-content
+    ports:
+      - "8080:8080"
+    depends_on:
+      - mongo
+    environment:
+      - SPRING_DATA_MONGODB_URI=mongodb://mongo:27017/smartcms
+
+volumes:
+  mongo-data:

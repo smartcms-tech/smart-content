@@ -1,0 +1,9 @@
+**/target
+**/.gradle
+**/build
+**/*.iml
+**/.idea
+**/.git
+**/*.log
+**/out
+**/test-results
