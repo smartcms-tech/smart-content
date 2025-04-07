@@ -31,8 +31,8 @@ repositories {
         name = "GitHubPackages"
         url = uri("https://maven.pkg.github.com/smartcms-tech/smart-common")
         credentials {
-            username = project.findProperty("gpr.user") ?: System.getenv("USERNAME_GITHUB")
-            password = project.findProperty("gpr.key") ?: System.getenv("TOKEN_GITHUB")
+            username = project.findProperty("gpr.user") ?: ""
+            password = project.findProperty("gpr.key") ?: ""
         }
     }
 }

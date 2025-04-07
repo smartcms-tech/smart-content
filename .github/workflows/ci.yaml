@@ -29,5 +29,12 @@ jobs:
           key: ${{ runner.os }}-gradle-${{ hashFiles('**/*.gradle*', '**/gradle-wrapper.properties') }}
           restore-keys: ${{ runner.os }}-gradle-
 
+      - name: Setup gradle.properties
+        run: |
+          mkdir -p ~/.gradle
+          echo "gpr.user=${{ secrets.GITHUB_USERNAME }}" >> ~/.gradle/gradle.properties
+          echo "gpr.key=${{ secrets.GITHUB_TOKEN }}" >> ~/.gradle/gradle.properties
+          echo "sonar.gradle.skipCompile=true" >> ~/.gradle/gradle.properties
+
       - name: Run Gradle build
         run: ./gradlew clean build
