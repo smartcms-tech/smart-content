@@ -80,6 +80,7 @@ sonarqube {
         property "sonar.coverage.jacoco.xmlReportPaths",
                 layout.buildDirectory.file("reports/jacoco/test/jacocoTestReport.xml").get().asFile
         property "sonar.test.exclusions", "**/*Test.java"
+        property "sonar.gradle.skipCompile", "true" // Add this line
     }
 }
 

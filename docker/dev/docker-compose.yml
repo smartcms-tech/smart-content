@@ -4,7 +4,7 @@ services:
     image: mongo:6.0
     container_name: smartcms-mongo
     ports:
-      - "27017:27017"
+      - "27018:27017"
     volumes:
       - mongo-data:/data/db
 
@@ -12,6 +12,9 @@ services:
     build:
       context: ../..  # pointing to smart-content root
       dockerfile: Dockerfile
+      args:
+        - GPR_USER=${GPR_USER}  # Default value if not provided
+        - GPR_KEY=${GPR_KEY}  # This needs to be provided
     image: smart-content
     ports:
       - "8080:8080"

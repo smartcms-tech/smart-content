@@ -69,3 +69,6 @@ Thumbs.db
 # MongoDB Local Data (if storing locally)
 data/
 dump/
+
+.env
+*.secret
