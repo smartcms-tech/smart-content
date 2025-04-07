@@ -26,8 +26,15 @@ jobs:
           path: |
             ~/.gradle/caches
             ~/.gradle/wrapper
-          key: ${{ runner.os }}-gradle-${{ hashFiles('**/*.gradle*', '**/gradle-wrapper.properties') }}
+          key: ${{ runner.os }}-gradle-${{ hashFiles('**/*.gradle*', '**/gradle-wrapper.properties', 'gradle.properties') }}
           restore-keys: ${{ runner.os }}-gradle-
+
+      - name: Check for required secrets
+        run: |
+          if [ -z "${{ secrets.GITHUB_USERNAME }}" ] || [ -z "${{ secrets.GITHUB_TOKEN }}" ]; then
+            echo "Missing required secrets: GITHUB_USERNAME or GITHUB_TOKEN"
+            exit 1
+          fi
 
       - name: Setup gradle.properties
         run: |
@@ -37,4 +44,5 @@ jobs:
           echo "sonar.gradle.skipCompile=true" >> ~/.gradle/gradle.properties
 
       - name: Run Gradle build
-        run: ./gradlew clean build
+        run: ./gradlew clean build --no-configuration-cache
+
